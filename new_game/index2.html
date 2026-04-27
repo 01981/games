@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3D Runner</title>
+
+<style>
+body { margin:0; overflow:hidden; background:black; }
+#score {
+    position:absolute;
+    top:20px;
+    left:20px;
+    color:white;
+    font-size:20px;
+}
+</style>
+</head>
+
+<body>
+
+<div id="score">Score: 0</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+
+<script>
+let scene = new THREE.Scene();
+let camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 1000);
+let renderer = new THREE.WebGLRenderer({antialias:true});
+
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+
+/* Light */
+let light = new THREE.DirectionalLight(0xffffff,1);
+light.position.set(0,10,10);
+scene.add(light);
+
+/* Ground */
+let groundGeo = new THREE.PlaneGeometry(20,200);
+let groundMat = new THREE.MeshStandardMaterial({color:0x333333});
+let ground = new THREE.Mesh(groundGeo, groundMat);
+ground.rotation.x = -Math.PI/2;
+scene.add(ground);
+
+/* Player */
+let playerGeo = new THREE.BoxGeometry(1,1,1);
+let playerMat = new THREE.MeshStandardMaterial({color:0xffff00});
+let player = new THREE.Mesh(playerGeo, playerMat);
+player.position.y = 0.5;
+scene.add(player);
+
+/* Camera */
+camera.position.set(0,5,10);
+camera.lookAt(player.position);
+
+/* Lanes */
+let lanes = [-4,0,4];
+let currentLane = 1;
+
+/* Jump */
+let velocityY = 0;
+let gravity = -0.02;
+let isJumping = false;
+
+/* Obstacles */
+let obstacles = [];
+let speed = 0.3;
+
+/* Score */
+let score = 0;
+let scoreEl = document.getElementById("score");
+
+/* Controls (keyboard) */
+document.addEventListener("keydown", e=>{
+    if(e.key==="ArrowLeft" && currentLane>0) currentLane--;
+    if(e.key==="ArrowRight" && currentLane<2) currentLane++;
+    if(e.key==="ArrowUp" && !isJumping){
+        velocityY = 0.4;
+        isJumping = true;
+    }
+});
+
+/* Swipe controls */
+let startX, startY;
+
+document.addEventListener("touchstart", e=>{
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+});
+
+document.addEventListener("touchend", e=>{
+    let dx = e.changedTouches[0].clientX - startX;
+    let dy = e.changedTouches[0].clientY - startY;
+
+    if(Math.abs(dx)>Math.abs(dy)){
+        if(dx>50 && currentLane<2) currentLane++;
+        if(dx<-50 && currentLane>0) currentLane--;
+    } else {
+        if(dy<-50 && !isJumping){
+            velocityY = 0.4;
+            isJumping = true;
+        }
+    }
+});
+
+/* Create obstacle */
+function createObstacle(){
+    let geo = new THREE.BoxGeometry(1,1,1);
+    let mat = new THREE.MeshStandardMaterial({color:0xff0000});
+    let obs = new THREE.Mesh(geo, mat);
+
+    let lane = Math.floor(Math.random()*3);
+    obs.position.set(lanes[lane],0.5,-50);
+
+    scene.add(obs);
+    obstacles.push(obs);
+}
+
+/* Game loop */
+function animate(){
+    requestAnimationFrame(animate);
+
+    /* Move player lane */
+    player.position.x += (lanes[currentLane] - player.position.x)*0.2;
+
+    /* Jump physics */
+    player.position.y += velocityY;
+    velocityY += gravity;
+
+    if(player.position.y <= 0.5){
+        player.position.y = 0.5;
+        isJumping = false;
+    }
+
+    /* Move obstacles */
+    obstacles.forEach((obs, i)=>{
+        obs.position.z += speed;
+
+        /* Collision */
+        if(
+            Math.abs(obs.position.x - player.position.x) < 1 &&
+            Math.abs(obs.position.z - player.position.z) < 1 &&
+            player.position.y < 1.2
+        ){
+            alert("Game Over! Score: "+score);
+            location.reload();
+        }
+
+        /* Remove */
+        if(obs.position.z > 10){
+            scene.remove(obs);
+            obstacles.splice(i,1);
+        }
+    });
+
+    renderer.render(scene, camera);
+}
+
+/* Spawn obstacles */
+setInterval(createObstacle, 1200);
+
+/* Score */
+setInterval(()=>{
+    score++;
+    scoreEl.textContent = "Score: " + score;
+
+    if(score % 20 === 0) speed += 0.02;
+},1000);
+
+animate();
+
+/* Resize */
+window.addEventListener("resize", ()=>{
+    camera.aspect = innerWidth/innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+});
+</script>
+
+</body>
+</html>
